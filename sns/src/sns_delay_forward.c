@@ -21,55 +21,52 @@ typedef struct Message {
 static enum ach_status
 handle_state( void *cx_, void *msg_, size_t msg_size )
 {
-    msg_container msg;
-    msg.msg_size = msg_size;
-    fprintf(stderr, "Raw Message Size: %zu\n", msg.msg_size);
-    int r; 
-    void* msg_mem = malloc(msg_size);
-    memcpy(msg_mem, msg_, msg_size);
-    msg.msg_pointer = msg_mem;
-    fprintf(stderr, "Pointer to message size:  %zu\n", sizeof(msg.msg_pointer));
-    do { 
+  msg_container msg;
+  msg.msg_size = msg_size;
+  fprintf(stderr, "Raw Message Size: %zu\n", msg.msg_size);
+  int r; 
+  void* msg_mem = malloc(msg_size);
+  memcpy(msg_mem, msg_, msg_size);
+  msg.msg_pointer = msg_mem;
+  fprintf(stderr, "Pointer to message size:  %zu\n", sizeof(msg.msg_pointer));
+  do { 
     fprintf(stderr, "WRITING TO PIPE IN OBJECT: %p\n", &msg.msg_pointer);
     r = write(fd[1],&msg,sizeof(msg_container));
-	//Check if r is -1 too
-	if(r == -1){
-          fprintf(stderr, "write: %s\n", strerror(errno));     
-	  exit(EXIT_FAILURE); 
-	}
-	else if(r != sizeof(msg)){
-          fprintf(stderr, "write: %i bytes written, was supposed to write %li bytes\n", r, sizeof(void*));
-	  exit(EXIT_FAILURE); 
-	} else {
-          //Good write, we can break out
-          break;
-        }
-    } while(1);
-    fprintf(stderr, "Clean message written to the pipe\n");
-    return ACH_OK;
+    //Check if r is -1 too
+    if(r == -1){
+      fprintf(stderr, "write: %s\n", strerror(errno));     
+      exit(EXIT_FAILURE); 
+    } else if(r != sizeof(msg)){
+      fprintf(stderr, "write: %i bytes written, was supposed to write %li bytes\n", r, sizeof(void*));
+       exit(EXIT_FAILURE); 
+    } else {
+      //Good write, we can break out
+      break;
+    }
+  } while(1);
+  fprintf(stderr, "Clean message written to the pipe\n");
+  return ACH_OK;
 }
 //Advanced Programming Unix Environment Richard Stevens 
 
 void *reader(struct ach_channel *channel) 
 {
-	/* Setup Event Handler */
-    	struct sns_evhandler handlers[1];
-  	handlers[0].channel = channel;
-    	handlers[0].context = NULL;
-    	handlers[0].handler = handle_state;
-    	handlers[0].ach_options = ACH_O_LAST;
-    	/* Run event loop */
-    	enum ach_status r =
-        	sns_evhandle( handlers, 1,
-                    	NULL, NULL, NULL,
-                      	sns_sig_term_default,
-                      	ACH_EV_O_PERIODIC_TIMEOUT );
-    
-		SNS_REQUIRE( sns_cx.shutdown || (ACH_OK == r),
-                	 "Could not handle events: %s, %s\n",
-                	 ach_result_to_string(r),
-                strerror(errno) );	
-
+  /* Setup Event Handler */
+  struct sns_evhandler handlers[1];
+  handlers[0].channel = channel;
+  handlers[0].context = NULL;
+  handlers[0].handler = handle_state;
+  handlers[0].ach_options = ACH_O_LAST;
+  /* Run event loop */
+  enum ach_status r =
+    sns_evhandle( handlers, 1,
+                  NULL, NULL, NULL,
+                  sns_sig_term_default,
+                  ACH_EV_O_PERIODIC_TIMEOUT );
+    SNS_REQUIRE( sns_cx.shutdown || (ACH_OK == r),
+                 "Could not handle events: %s, %s\n",
+                 ach_result_to_string(r),
+                 strerror(errno) );	
 return 0;
 }
 
@@ -81,6 +78,7 @@ void *writer(struct ach_channel *channel)
                 msg_container msg;
                 int r;
 		r = read(fd[0],&msg,sizeof(msg_container));
+                fprintf(stderr, "finished"); 
 		//Error handle read
                 fprintf(stderr, "Read bytes from pipe: %i\n ", r);
                 if(r == -1){
@@ -140,6 +138,8 @@ int main(int argc, char** argv)
         if (result != 0){
           fprintf(stderr, "p_thread_create returned value of %i: %s\n", result, strerror(errno));
         }
+
+        fprintf(stderr, "back in main thread");
 
 	pthread_join(tid1,NULL);
 	pthread_join(tid2,NULL);
