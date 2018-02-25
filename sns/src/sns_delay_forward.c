@@ -134,8 +134,12 @@ int main(int argc, char** argv)
         if (result != 0){
            fprintf(stderr, "pthread_create returned value of %i: %s\n",result, strerror(errno));
 	}
+        
 
-	pthread_create(&tid1,NULL,writer(&out_channel),NULL);
+        result = pthread_create(&tid1,NULL,writer(&out_channel),NULL);
+        if (result != 0){
+          fprintf(stderr, "p_thread_create returned value of %i: %s\n", result, strerror(errno));
+        }
 
 	pthread_join(tid1,NULL);
 	pthread_join(tid2,NULL);
