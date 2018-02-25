@@ -13,24 +13,31 @@
 
 int fd[2]; //File descriptor for the pipeline
 
+typedef struct Message {
+  void* msg_pointer;
+  size_t msg_size;
+} msg_container;
+
 static enum ach_status
 handle_state( void *cx_, void *msg_, size_t msg_size )
 {
-    fprintf(stderr, "Raw Message Size: %zu\n", msg_size);
-    (void)cx_;
+    msg_container msg;
+    msg.msg_size = msg_size;
+    fprintf(stderr, "Raw Message Size: %zu\n", msg.msg_size);
     int r; 
     void* msg_mem = malloc(msg_size);
     memcpy(msg_mem, msg_, msg_size);
-    fprintf(stderr, "Pointer to message size:  %zu\n", sizeof(msg_mem));
+    msg.msg_pointer = msg_mem;
+    fprintf(stderr, "Pointer to message size:  %zu\n", sizeof(msg.msg_pointer));
     do { 
-    fprintf(stderr, "WRITING TO PIPE: %p\n", &msg_mem);
-    r = write(fd[1],&msg_mem,sizeof(msg_mem));
+    fprintf(stderr, "WRITING TO PIPE IN OBJECT: %p\n", &msg.msg_pointer);
+    r = write(fd[1],&msg,sizeof(msg_container));
 	//Check if r is -1 too
 	if(r == -1){
           fprintf(stderr, "write: %s\n", strerror(errno));     
 	  exit(EXIT_FAILURE); 
 	}
-	else if(r != sizeof(msg_mem)){
+	else if(r != sizeof(msg)){
           fprintf(stderr, "write: %i bytes written, was supposed to write %li bytes\n", r, sizeof(void*));
 	  exit(EXIT_FAILURE); 
 	} else {
@@ -71,18 +78,18 @@ void *writer(struct ach_channel *channel)
         fprintf(stderr, "Started monitoring for message on pipe\n");
 	while(1) {
 		/* Read from the pipe if something is there */
-                void* msg_pointer;
+                msg_container msg;
                 int r;
-		r = read(fd[0],&msg_pointer,8);
+		r = read(fd[0],&msg,sizeof(msg_container));
 		//Error handle read
                 fprintf(stderr, "Read bytes from pipe: %i\n ", r);
                 if(r == -1){
                   fprintf(stderr,"read: %s\n", strerror(errno)); 
                 }
-                fprintf(stderr, "Pointer read from pipe: %p\n", &msg_pointer); 
-		char* deref = (char*)msg_pointer;
-                fprintf(stderr, "Dereferenced Pointer: %s, Size: %lu\n", deref, sizeof(&deref));
-		r = ach_put(channel,deref, sizeof(&deref));
+                fprintf(stderr, "Pointer read from pipe: %p\n", msg.msg_pointer); 
+		char* deref = (char*)msg.msg_pointer;
+                fprintf(stderr, "Dereferenced Pointer: %s, Size: %lu\n", deref, msg.msg_size);
+		r = ach_put(channel,deref, msg.msg_size);
                 fprintf(stderr, "ach_put returned code %i\n", r);
                 if(r == -1){
                   fprintf(stderr,"ach_put: Failed to put\n");
