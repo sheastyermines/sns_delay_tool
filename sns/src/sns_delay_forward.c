@@ -3,6 +3,8 @@
 * Name: sns_delay_forward
 */
 
+#include <time.h>
+#include <getopt.h>
 #include <sns.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -12,6 +14,8 @@
 #include <ach/experimental.h>
 
 int fd[2]; //File descriptor for the pipeline
+struct timespec tim;
+static int verbose_flag;
 
 typedef struct Message {
   void* msg_pointer;
@@ -87,7 +91,23 @@ void *writer(struct ach_channel *channel)
                 }
                 fprintf(stderr, "Pointer read from pipe: %p\n", msg.msg_pointer); 
 		char* deref = (char*)msg.msg_pointer;
-                fprintf(stderr, "Dereferenced Pointer: %s, Size: %lu\n", deref, msg.msg_size);
+                //fprintf(stderr, "Dereferenced Pointer: %s, Size: %lu\n", deref, msg.msg_size);
+
+		fprintf(stderr, "Sleeping for %li seconds and %li nanoseconds\n\n", tim.tv_sec, tim.tv_nsec);
+                struct timespec t, t2;
+		t.tv_sec = 3;
+		t.tv_nsec = 0L;
+                //int rettime = clock_gettime(CLOCK_MONOTONIC, &t);
+		//if(rettime < 0){
+                  //fprintf(stderr, "clock_gettime returned value of %i: %s\n",rettime, strerror(errno));
+                //}
+		//int ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
+		int ret = nanosleep(&t, &t2);
+		fprintf(stderr, "clock_nanosleep return %i\n", ret);
+                if(ret != 0){
+                  fprintf(stderr, "clock failed");
+                }
+
 		r = ach_put(channel,deref, msg.msg_size);
                 fprintf(stderr, "ach_put returned code %i\n", r);
                 if(r == -1){
@@ -99,7 +119,6 @@ void *writer(struct ach_channel *channel)
 
 void * start_reading(void * restrict channel){
  return  reader(channel);
-
 }
 
 void * start_writing(void * restrict channel){
@@ -108,19 +127,82 @@ void * start_writing(void * restrict channel){
 
 int main(int argc, char** argv) 
 {
-	if(argc != 4)
-	{
-		fprintf(stderr,"Invalid Argument Format\n");
-		return 1;
-	}
-	
+  tim.tv_sec = 0;
+  tim.tv_nsec = 0L;
+  int c;
+  char * outgoing_channel;
+  char * receiving_channel;
+  while (1)
+    {
+      static struct option long_options[] =
+        {
+          /* These options set a flag. */
+          {"verbose", no_argument,       &verbose_flag, 1},
+          {"brief",   no_argument,       &verbose_flag, 0},
+          /* These options don’t set a flag.
+             We distinguish them by their indices. */
+          {"milliseconds",  required_argument, 0, 'm'},
+          {"nanoseconds",    required_argument, 0, 'n'},
+          {"out_channel", required_argument, 0, 'o'},
+          {"in_channel", required_argument, 0, 'i'},
+          {"seconds", required_argument, 0, 's'},
+          {0, 0, 0, 0}
+        };
+      /* getopt_long stores the option index here. */
+      int option_index = 0;
+
+      c = getopt_long (argc, argv, "m:n:o:i:s:",
+                       long_options, &option_index);
+
+      /* Detect the end of the options. */
+      if (c == -1)
+        break;
+
+      switch (c)
+        {
+        case 0:
+          /* If this option set a flag, do nothing else now. */
+          if (long_options[option_index].flag != 0)
+            break;
+          printf ("option %s", long_options[option_index].name);
+          if (optarg)
+            printf (" with arg %s", optarg);
+          printf ("\n");
+          break;
+
+        case 'm':
+          printf ("millisecond delay: `%s'\n", optarg);
+          tim.tv_nsec += atol(optarg) * 1000000;
+	  
+          break;
+
+        case 'n':
+          printf ("nanosecond delay: `%s'\n", optarg);
+	  tim.tv_nsec += atol(optarg);
+          break;
+
+	case 's':
+	  tim.tv_sec += atoi(optarg);
+	  break;
+
+	case 'o':
+	  outgoing_channel = optarg;
+	  break;
+    
+        case 'i':
+	  receiving_channel = optarg;
+          break;
+
+        case '?':
+          /* getopt_long already printed an error message. */
+          break;
+
+        default:
+          abort ();
+        }
+    }	
 	sns_init();
 		
-	char* receiving_channel = argv[1];
-	char* outgoing_channel = argv[2];
-	//int delay = (int)argv[2];
-	int delay = 2;	
-
 	/* Open Channel */ 
 	struct ach_channel rec_channel;
 	sns_chan_open(&rec_channel, receiving_channel, NULL);
