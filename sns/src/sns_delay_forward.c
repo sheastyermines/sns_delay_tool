@@ -77,8 +77,9 @@ void *writer(struct ach_channel *channel)
 		/* Read from the pipe if something is there */
                 msg_container msg;
                 int r;
-		r = read(fd[0],&msg,sizeof(msg_container));
-                fprintf(stderr, "finished"); 
+                fprintf(stderr, "attempting to read from pipe\n");
+		r = read(fd[0],&msg,sizeof(msg));
+                fprintf(stderr, "read finished with exit code of %i\n",r); 
 		//Error handle read
                 fprintf(stderr, "Read bytes from pipe: %i\n ", r);
                 if(r == -1){
@@ -94,6 +95,15 @@ void *writer(struct ach_channel *channel)
                 } 
 	}
 
+}
+
+void * start_reading(void * restrict channel){
+ return  reader(channel);
+
+}
+
+void * start_writing(void * restrict channel){
+  return writer(channel);
 }
 
 int main(int argc, char** argv) 
@@ -128,13 +138,14 @@ int main(int argc, char** argv)
 		perror("pipe ");
 		exit(1);
 	}
-        result = pthread_create(&tid1,NULL,reader(&rec_channel),NULL);
+        result = pthread_create(&tid1,NULL,&start_reading,&rec_channel);
+        fprintf(stderr, "pthread_create returned exit code of %i\n", result);
         if (result != 0){
            fprintf(stderr, "pthread_create returned value of %i: %s\n",result, strerror(errno));
 	}
         
-
-        result = pthread_create(&tid1,NULL,writer(&out_channel),NULL);
+        fprintf(stderr, "\n\nCreating the polling thread\n");
+        result = pthread_create(&tid1,NULL,&start_writing,&out_channel);
         if (result != 0){
           fprintf(stderr, "p_thread_create returned value of %i: %s\n", result, strerror(errno));
         }
